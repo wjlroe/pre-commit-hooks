@@ -28,6 +28,21 @@ def _process_line(line, is_markdown):
     return line.rstrip() + eol
 
 
+def _whitespace_before_crlf(line):
+    return line[-3:-2] == b' ' or line[-3:-2] == b'\t'
+
+def _whitespace_before_lf(line):
+    return line[-2:-1] == b' ' or line[-2:-1] == b'\t'
+
+def _has_trailing_whitespace(filename):
+    trailing = False
+    with open(filename, mode='rb') as fd:
+        for line in fd:
+            if _whitespace_before_lf(line) or _whitespace_before_crlf(line):
+                trailing = True
+                break
+    return trailing
+
 def fix_trailing_whitespace(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -50,9 +65,15 @@ def fix_trailing_whitespace(argv=None):
     parser.add_argument('filenames', nargs='*', help='Filenames to fix')
     args = parser.parse_args(argv)
 
-    bad_whitespace_files = cmd_output(
-        'grep', '-l', '[[:space:]]$', *args.filenames, retcode=None
-    ).strip().splitlines()
+    if os.name == 'nt':
+        bad_whitespace_files = [
+            filename for filename in args.filenames
+            if _has_trailing_whitespace(filename)
+        ]
+    else:
+        bad_whitespace_files = cmd_output(
+            'grep', '-l', '[[:space:]]$', *args.filenames, retcode=None
+        ).strip().splitlines()
 
     md_args = args.markdown_linebreak_ext
     if '' in md_args:
